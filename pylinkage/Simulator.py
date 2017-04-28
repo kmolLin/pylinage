@@ -499,8 +499,7 @@ class CSimulatorImplementation():
                 return False
             if( pCommonConnector.GetSlideRadius() == 0 ):
                 bOnSegments = False
-                if(  Intersects( pTempLimit1.GetTempPoint(), pTempLimit2.GetTempPoint(),
-                 EndPoint1, EndPoint2, Intersect, 0, bOnSegments or not bOnSegments ):
+                if  Intersects( pTempLimit1.GetTempPoint(), pTempLimit2.GetTempPoint(),EndPoint1, EndPoint2, Intersect, 0, bOnSegments or( not bOnSegments) ):
                     return False
                 bHit = True
             else:
@@ -546,19 +545,236 @@ class CSimulatorImplementation():
         return True
     def SlideToLink(self, pLink, pFixedConnector, pSlider, pLimit1, pLimit2):
         ###testslidetoLink
+        r = pLink.GetLinkLength( pFixedConnector, pSlider )
+        Circle = CFCircle( pFixedConnector.GetTempPoint(), r )
+        Intersect = CFPoint()
+        Intersect2 = CFPoint()
+        if( pSlider.GetSlideRadius() == 0 ):#1098
+            Line = CFLine(pLimit1.GetTempPoint(), pLimit2.GetTempPoint())
+            bHit = False
+            bHit2 = False
+            Intersects( Line, Circle, Intersect, Intersect2, bHit, bHit2, False, False )
+            if( not bHit and not bHit2 ):
+                return False
             
+            if( not bHit2 ):
+                Intersect2 = Intersect
+            elif not bHit :
+                Intersect = Intersect2
+                
+        else:
+            TheArc = CFArc()
+            if(not pSlider.GetSliderArc( TheArc ) ):
+                return False
+            if( not TheArc.CircleIntersection( Circle, Intersect, Intersect2 ) ):
+                return False
+            if( not TheArc.PointOnArc( Intersect2 ) ):
+                Intersect2 = Intersect
+                if(not TheArc.PointOnArc( Intersect ) ):
+                    return False
+        TestLine = CFLine(pSlider.GetPreviousPoint(), pSlider.GetPoint())
+        TestLine.SetDistance( TestLine.GetDistance() * ( MOMENTUM if self.m_bUseIncreasedMomentum else NO_MOMENTUM ) )
+        SuggestedPoint = TestLine.GetEnd()
+        d1 = self.Distance( SuggestedPoint, Intersect )
+        d2 = self.Distance( SuggestedPoint, Intersect2 )
+        if( d2 < d1 ):
+            Intersect = Intersect2
+        Angle = self.GetAngle( pFixedConnector.GetTempPoint(), Intersect, pFixedConnector.GetOriginalPoint(), pSlider.GetOriginalPoint() )
+        Angle = self.GetClosestAngle( pFixedConnector.GetRotationAngle(), Angle )
+        pFixedConnector.SetRotationAngle( Angle )
+        if(not pLink.RotateAround( pFixedConnector ) ):
+            return False
+        pSlider.MovePoint( Intersect )
+        return True
         
+    def SlideToSlider(self, pLink, pTargetConnector, pTargetLimit1, pTargetLimit2):
+        if( pLink.IsFixed() ):
+            return False
+        if( not pTargetConnector.IsFixed() ):
+            return False
+        if not pTargetConnector.IsSlider():
+            return False
+        pLimit1 = 0
+        pLimit2 = 0
+        pSlider1 = 0
+        pSlider2 = 0
+        pActualSlider1 = 0
+        pActualSlider2 = 0
         
+        if (not pLink.CanOnlySlide(pLimit1,pLimit2, pSlider1 , pSlider2, bOtherLinkHasSliders)):
+            return False
+        if(not bOtherLinkHasSliders ):
+            pSlider1, pLimit1 =pLimit1, pSlider1
+            pSlider2, pLimit2 =pLimit2, pSlider2
             
+        if pTargetConnector.IsSharingLink( pLimit1 ):
+            return False
+        #1205
+        ConnectedLine = CFLine(pTargetLimit1.GetOriginalPoint(), pTargetLimit2.GetOriginalPoint())
+        SlideLine = CFLine(pLimit1.GetOriginalPoint(), pLimit2.GetOriginalPoint())
         
+        Intersect = CFPoint()
+        if( not Intersects( ConnectedLine, SlideLine, Intersect ) ):
+            return False
+        IntersectToSlider = self.Distance( Intersect, pSlider1.GetOriginalPoint() )
+        if( not bOtherLinkHasSliders ):
+            IntersectToSlider = -IntersectToSlider
+            '''
+            // Figure out the angle between the two lines at the intersection point. Use the connected slider location for one point and one of the slide limits for the other.
+            // double SlideToSlideAngle = GetAngle( Intersect, pTargetConnector->GetOriginalPoint(), pLimit1->GetOriginalPoint() );
+
+            // Move the connected slider limit line to go through its new point.
+            '''
+        NewSlideLine =CFLine( pLimit1.GetPoint(), pLimit2.GetPoint() )
+        ChangeAngle = NewSlideLine.GetAngle() - SlideLine.GetAngle()
+        ConnectedLine -= ConnectedLine.GetStart()
+        ConnectedLine.m_End.RotateAround( ConnectedLine.m_Start, ChangeAngle )
         
+        if( not Intersects( ConnectedLine, NewSlideLine, Intersect ) ):
+           return False
         
+        NewSlideLine -= NewSlideLine.m_Start
+        NewSlideLine += Intersect
+        NewSlideLine.SetDistance( IntersectToSlider )
         
-                
+        ChangeAngle = self.GetClosestAngle( pSlider1.GetRotationAngle(), ChangeAngle )
+        pSlider1.SetRotationAngle( ChangeAngle )
+        pSlider1.MovePoint( NewSlideLine.m_End )
+        pLink.RotateAround( pSlider1 )
+        
+        return True
+        
+    def MoveToSlider(self, pLink, CConnector, pFixedConnector, pSlider):
+        Circle = CFCircle(pFixedConnector.GetTempPoint(), pSlider.GetTempPoint())
+        Circle.r = self.Distance( pSlider.GetTempPoint(), pFixedConnector.GetTempPoint() )
+        Offset = CFPoint(pFixedConnector.GetTempPoint() - pFixedConnector.GetOriginalPoint())
+        Intersect = CFPoint()
+        Intersect2 = CFPoint()
+        if( pSlider.GetSlideRadius() == 0 ):
+            pLimit1 = CConnector(0)
+            pLimit2 = CConnector(0)
+            pSlider.GetSlideLimits( pLimit1, pLimit2 )
+            LimitLine = CFLine(pLimit1.GetOriginalPoint(), pLimit2.GetOriginalPoint())
+            LimitLine += Offset
+            bHit = False
+            bHit2 = False
             
-                
-                
-                
+            self.Intersects( LimitLine, Circle, Intersect, Intersect2, bHit, bHit2, False, False )
+            if( not bHit and not bHit2 ):
+                return False
+            if( not bHit2 ):
+                Intersect2 = Intersect
+            elif not bHit:
+                Intersect = Intersect2
+        else:
+            TheArc = CFArc()
+            if( not pSlider.GetSliderArc( TheArc, True ) ):
+                return False
+            TheArc.x += Offset.x
+            TheArc.y += Offset.y
+            if( not TheArc.CircleIntersection( Circle, Intersect, Intersect2 ) ):
+                return False
+            if( not TheArc.PointOnArc( Intersect2 ) ):
+                Intersect2 = Intersect
+                if( not TheArc.PointOnArc( Intersect ) ):
+                    return False
+        d1 = self.Distance( pSlider.GetTempPoint(), Intersect )
+        d2 = self.Distance( pSlider.GetTempPoint(), Intersect2 )
+        if( d2 < d1 ):
+            Intersect = Intersect2
+        Angle = self.GetAngle( pFixedConnector.GetTempPoint(), pSlider.GetTempPoint(), Intersect )
+        Angle = self.GetClosestAngle( pFixedConnector.GetRotationAngle(), Angle )
+        pFixedConnector.SetRotationAngle( Angle )
+        if( not pLink.RotateAround( pFixedConnector ) ):
+            return False
+        return True
         
+    def JoinToLink(self, *keyword):
+        if type(keyword[0])==CLink:
+            pLink = keyword[0]
+            pFixedConnector = keyword[1]
+            pCommonConnector = keyword[2]
+            pOtherToRotate = keyword[3]
+            
+            pOtherFixedConnector = CConnector(pOtherToRotate.GetFixedConnector())
+            if( pOtherFixedConnector == 0 ):
+                if( pOtherToRotate.GetFixedConnectorCount() == 0 ):
+                    return True
+                else:
+                    return False
+            if( pOtherFixedConnector.IsInput() ):
+                return False
+            Position = POSITION(pLink.GetConnectorList()[0])
+            for Position in range(Position != 0):
+                pTestConnector = pLink.GetConnectorList(Position+1)  ##list need to change
+                if( pTestConnector == 0 or pTestConnector == pFixedConnector or pTestConnector == pFixedConnector ):
+                    continue
+                Position2 = POSITION(pTestConnector.GetLinkList()[0])
+                for Position2 in range(Position2 != 0):
+                    pTestLink = CLink(pTestConnector.GetLinkList()[Position2+1])
+                    if( pTestLink == 0 or pTestLink == pLink or pTestLink == pOtherToRotate ):
+                        continue
+                    if( pTestLink.GetFixedConnectorCount() != 0 ):
+                        pCommonConnector.SetPositionValid( False )
+                        return False
+                    '''
+                    // pOtherToRotate could be connected to something that can't move. Check to make
+                    // sure but don't otherwise move anything else. Check all Links connected to
+                    // pOtherToRotate other than this Link and if any of them have fixed connectors,
+                    // return immediately.
+                    '''
+            Position = POSITION(pOtherToRotate.GetConnectorList()[0])
+            for Position in range(Position != 0 and 0):
+                pTestConnector = CConnector(pOtherToRotate.GetConnectorList()[Position+1])
+                if( pTestConnector == 0 or pTestConnector == pOtherFixedConnector or pTestConnector == pFixedConnector ):
+                    continue
+                    Position2 = POSITION(pTestConnector.GetLinkList()[0])
+                for Position2 in range(Position2 != 0):
+                    pTestLink = CLink(pTestConnector.GetLinkList()[Position2+1])
+                    if( pTestLink == 0 or pTestLink == pLink or pTestLink == pOtherToRotate ):
+                        continue
+                    if( pTestLink.GetFixedConnectorCount() != 0 ):
+                        pCommonConnector.SetPositionValid( False )
+                        return False    
+                        
+            r1 = pLink.GetLinkLength( pFixedConnector, pCommonConnector )
+            r2 = pOtherToRotate.GetLinkLength( pOtherFixedConnector, pCommonConnector )
+            Circle1 = CFCircle(pFixedConnector.GetTempPoint(), r1)
+            Circle2 = CFCircle(pFixedConnector.GetTempPoint(), r2)
+            Intersect = CFPoint()
+            Intersect2 = CFPoint()
+            if( not Circle1.CircleIntersection( Circle2, Intersect, Intersect2 ) ):
+                return False
+            '''
+            // Try to give the point momentum by determining where it would be if
+            // it moved from a previous point through it's current point to some
+            // new point. Use that new point as the basis for selecting the new
+            // location.
+            '''
+            Line = CFLine(pCommonConnector.GetPreviousPoint(), pCommonConnector.GetPoint())
+            Line.SetDistance( Line.GetDistance() * (MOMENTUM if self.m_bUseIncreasedMomentum else NO_MOMENTUM ) )
+            SuggestedPoint = Line.GetEnd()
+            d1 = self.Distance( SuggestedPoint, Intersect)
+            d2 = self.Distance( SuggestedPoint, Intersect2)
+                    
+            if(d2<d1):
+                Intersect = Intersect2
+                
+            Angle = self.GetAngle( pFixedConnector.GetTempPoint(), Intersect, pFixedConnector.GetOriginalPoint(), pCommonConnector.GetOriginalPoint() )
+            Angle = GetClosestAngle( pFixedConnector.GetRotationAngle(), Angle )
+            pFixedConnector.SetRotationAngle( Angle )
+            if( not pLink.RotateAround( pFixedConnector ) ):
+                return False
+            pCommonConnector.SetTempFixed( False )
+            pLink.IncrementMoveCount( -1 )
+            Angle = self.GetAngle( pOtherFixedConnector.GetTempPoint(), Intersect, pOtherFixedConnector.GetOriginalPoint(), pCommonConnector.GetOriginalPoint() )
+            Angle = self.GetClosestAngle( pOtherToRotate.GetRotationAngle(), Angle )
+            pOtherFixedConnector.SetRotationAngle( Angle )
+            if( not pOtherToRotate.RotateAround( pOtherFixedConnector ) ):
+                return False
+            return True
+        elif type(keyword[0])==CLink:
+            ##1666
+            pass
     
     

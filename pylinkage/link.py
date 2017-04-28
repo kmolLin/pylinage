@@ -1,7 +1,7 @@
 #link.py
 DBL_MAX = 1.7976931348623158e+308 ## max value
 from Element import CElement
-from Connector import CConnector
+from Connector import  *
 from geometry import CFPoint
 class LinkList(list):
     
@@ -37,6 +37,7 @@ class CLinkTriangleConnection():
 
 class CLink(CElement):
     def __init__(self,*keyword):
+        self.m_Connectors = ConnectorList()
         if len(keyword)==0:
             self.m_Identifier = 0
             self.m_MoveCount = 0
