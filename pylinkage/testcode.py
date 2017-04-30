@@ -17,6 +17,7 @@ if __name__ == '__main__':
     
     h = CConnector()
 #    linkk.AddConnector(h)
-    linkk.SetActuator(0)
+    linkk.UpdateControlKnob(c)
+    linkk.GetLocation()
     print(f.GetControlKnob())
 

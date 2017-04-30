@@ -98,7 +98,7 @@ class CLink(CElement):
                 self.m_Connectors.append( pConnector )
     def IsLink(self):return True
     def IsConnector(self):return False
-    def GetLocation(self):return CFPoint() if self.m_Connectors.GetCount() else self.m_Connectors.GetHead().GetPoint()
+    def GetLocation(self):return CFPoint() if len(self.m_Connectors) else CConnector(self.m_Connectors[0]).GetPoint()
     def GetIdentifierString(self,bDebugging):
         if( bDebugging ):
             print(self.GetIdentifier())
