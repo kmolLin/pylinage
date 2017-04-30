@@ -16,6 +16,12 @@ class LinkList(list):
         return True
 
     def Contains(self, pLink): return pLink in self
+    def __getitem__(self, k):
+        if len(self)==0:
+            print('error')
+        else:
+            return self[k]
+    def __str__(self): return "<list x={v[0]}>".format(v=self)
 
 class CGearConnection():
     ##enum ConnectionType { GEARS, CHAIN }
@@ -483,5 +489,5 @@ if __name__ =="__main__":
     b = CLink()
     print(b.GetIdentifierString(10))
     a.append(b)
-    print(a)
-    print(a.Contains(b))
+    print(b.GetConnectorList())
+    #print(a)

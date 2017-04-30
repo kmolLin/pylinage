@@ -773,8 +773,221 @@ class CSimulatorImplementation():
             if( not pOtherToRotate.RotateAround( pOtherFixedConnector ) ):
                 return False
             return True
-        elif type(keyword[0])==CLink:
+        elif type(keyword[0])==LinkList:
             ##1666
-            pass
+            pLinkList =  keyword[0]
+            pConnectors =  keyword[1]
+            pFixedConnector =  keyword[2]
+            pCommonConnector =  keyword[3]
+            pOtherToRotate =  keyword[4]
+            
+            pOtherFixedConnector = CConnector(pOtherToRotate.GetFixedConnector())
+            if pOtherFixedConnector == 0:
+                if( pOtherToRotate.GetFixedConnectorCount() == 0 ):
+                    return True
+                else:
+                    return False
+            if( pOtherFixedConnector.IsInput() ):
+                return False
+            Position = POSITION(pConnectors[0])
+            for Position in range(Position != 0):
+                pTestConnector = CConnector(pConnectors()[Position+1])
+                if( pTestConnector == 0 or pTestConnector == pFixedConnector or pTestConnector == pFixedConnector ):
+                    continue
+                Position2 =POSITION(pTestConnector.GetLinkList()[0]) 
+                for(  Position2  ) in range( Position2 != 0):
+                    pTestLink = pTestConnector.GetLinkList()[Position2+1]
+                    if( pTestLink == 0 or pTestLink == pOtherToRotate or pLinkList.Contains( pTestLink ) ):
+                        continue
+                    if( pTestLink.GetFixedConnectorCount() != 0 ):
+                        pCommonConnector.SetPositionValid( False )
+                        return False
+            '''
+            // pOtherToRotate could be connected to something that can't move. Check to make
+            // sure but don't otherwise move anything else. Check all Links connected to
+            // pOtherToRotate other than this Link and if any of them have fixed connectors,
+            // return immediately.
+            '''
+            Position = POSITION(pOtherToRotate.GetConnectorList()[0])
+            for Position in range(Position != 0):
+                pTestConnector = CConnector(pOtherToRotate.GetConnectorList()[Position+1])
+                if( pTestConnector == 0 or pTestConnector == pOtherFixedConnector or pTestConnector == pFixedConnector ):
+                    continue
+                Position2 = POSITION(pTestConnector.GetLinkList()[0])
+                for Position2 in range (Position2 != 0):
+                    pTestLink = CLink(pTestConnector.GetLinkList()[Position2+1])
+                    if( pTestLink == 0 or pTestLink == pOtherToRotate or pLinkList.Contains( pTestLink ) ):
+                        continue
+                    if( pTestLink.GetFixedConnectorCount() != 0 ):
+                        pCommonConnector.SetPositionValid( False )
+                        return False
+                        
+            '''
+            /* 
+            * Check for the actuators in the triangle. If there are any, take some extra steps to find the
+            * distance from the fixed conector to the new end of the triangle.
+
+            MAYBE is it possible to just move the common connector and let the other simulator code see it later
+            and finish the simulation of the triangle?
+
+            */ 
+            '''
+            DistanceToCommon = 0.
+            ThreeConnectors[3] = CConnector()
+            ThreeConnectorsAngle = 0
+            if( not SimulateLinkTriangle( pLinkList,  pConnectors, pFixedConnector, pCommonConnector, DistanceToCommon, ThreeConnectors, ThreeConnectorsAngle ) ):
+                return False
+            r1 = DistanceToCommon
+            r2 = pOtherToRotate.GetActuatedConnectorDistance( pOtherFixedConnector, pCommonConnector )
+            Circle1 = CFCircle(pFixedConnector.GetTempPoint(), r1)
+            Circle2 = CFCircle(pOtherFixedConnector.GetTempPoint(), r2)
+            Intersect = CFPoint()
+            Intersect2 = CFPoint()
+            if( not Circle1.CircleIntersection( Circle2, Intersect, Intersect2 ) ):
+                return False
+            '''
+            // Try to give the point momentum by determining where it would be if
+            // it moved from a previous point through it's current point to some
+            // new point. Use that new point as the basis for selecting the new
+            // location.
+            '''
+            Line = CFLine(pCommonConnector.GetPreviousPoint(), pCommonConnector.GetPoint())
+            Line.SetDistance( Line.GetDistance() * (   MOMENTUM if self.m_bUseIncreasedMomentum else NO_MOMENTUM ) )
+            SuggestedPoint = Line.GetEnd()
+            
+            d1 = self.Distance( SuggestedPoint , Intersect )
+            d2 = self.Distance( SuggestedPoint , Intersect2 )
+            
+            if( d2 < d1 ):
+                Intersect = Intersect2
+            Angle = self.GetAngle( pOtherFixedConnector.GetTempPoint(), Intersect, pOtherFixedConnector.GetOriginalPoint(), pCommonConnector.GetOriginalPoint() )
+            Angle = self.GetClosestAngle( pOtherFixedConnector.GetRotationAngle(), Angle )
+            pOtherFixedConnector.SetRotationAngle( Angle )
+            if( not pOtherToRotate.RotateAround( pOtherFixedConnector ) ):
+                return False
+            '''
+            /*
+            * Now that the end of the link triangle has been determined and fixed, part of the link triangle itself must be simulated. This cannot
+            * be done by the next pass of the simulation code because there is a choice about the location of one of the intermediate connectors
+            * that can often be made wrong by the other code. Use the information from the triangle simulation to outright position that intermediate 
+            * connector.
+            */
+
+
+            // Find the link that contains the start connector from the triangle simulation.
+            // Find the link that contains the end connector from the triangle simulation.
+            // Simulate and move those two links into position.
+            '''
+            pXLink = CLink()
+            pXOtherToRotate = CLink()
+            Position = POSITION(pLinkList[0])
+            while( Position != 0 ):
+                pTestLink = pLinkList[Position+1]
+                if( pTestLink.GetConnectorList().Find( ThreeConnectors[0] ) != 0 and pTestLink.GetConnectorList().Find( ThreeConnectors[1] ) != 0 ):
+                    pXLink = pTestLink
+                elif (pTestLink.GetConnectorList().Find( ThreeConnectors[2] ) != 0 and pTestLink.GetConnectorList().Find( ThreeConnectors[1] ) != 0 ):
+                    pXOtherToRotate = pTestLink
+            if( pXLink == 0 or pXOtherToRotate == 0 ):
+                return True
+            pXFixedConnector = CConnector(ThreeConnectors[0])
+            XOtherFixedConnector = CConnector(ThreeConnectors[2])
+            pCommonConnector = ThreeConnectors[1]
+            if( not pXFixedConnector.IsFixed() or not pXOtherFixedConnector.IsFixed() ):
+                return True
+                
+            if( pXOtherFixedConnector.IsInput() ):
+                return False
+            r1 = pXLink.GetActuatedConnectorDistance( pXFixedConnector, pCommonConnector )
+            r2 = pXOtherToRotate.GetActuatedConnectorDistance( pXOtherFixedConnector, pCommonConnector )
+            Circle1.SetCircle( pXFixedConnector.GetTempPoint(), r1 )
+            Circle2.SetCircle( pXOtherFixedConnector.GetTempPoint(), r2 )
+            if( not Circle1.CircleIntersection( Circle2, Intersect, Intersect2 ) ):
+                return False
+                
+            Angle1 = self.GetAngle( Intersect, pXFixedConnector.GetTempPoint(), pXOtherFixedConnector.GetTempPoint() )
+            Angle2 = self.GetAngle( Intersect2, pXFixedConnector.GetTempPoint(), pXOtherFixedConnector.GetTempPoint() )
+            
+            Diff1 = abs( Angle1 - ThreeConnectorsAngle )
+            Diff2 = abs( Angle2 - ThreeConnectorsAngle )
+            
+            if( Diff2 < Diff1 ):
+                Intersect = Intersect2
+            
+            Angle = self.GetAngle( pXFixedConnector.GetTempPoint(), Intersect, pXFixedConnector.GetOriginalPoint(), pCommonConnector.GetOriginalPoint() )
+            Angle = self.GetClosestAngle( pXFixedConnector.GetRotationAngle(), Angle )
+            
+            pXFixedConnector.SetRotationAngle( Angle )
+            if( not pXLink.RotateAround( pXFixedConnector ) ):
+                return False
+            pCommonConnector.SetTempFixed( False )
+            pXLink.IncrementMoveCount( -1 )
+            Angle = self.GetAngle( pXOtherFixedConnector.GetTempPoint(), Intersect, pXOtherFixedConnector.GetOriginalPoint(), pCommonConnector.GetOriginalPoint() )
+            Angle = self.GetClosestAngle( pXOtherToRotate.GetRotationAngle(), Angle )
+            pXOtherFixedConnector.SetRotationAngle( Angle )
+            if( not pXOtherToRotate.RotateAround( pXOtherFixedConnector ) ):
+                return False
+            return True
+            
+    def GetLinkTriangles(self, pLink,Triangles ):
+        Count =0
+        pBaseConnector = CConnector(pLink.GetFixedConnector())
+        ConnectedLinks = LinkList()
+        Position = POSITION(pLink.GetConnectorList()[0])
+        while( Position != 0 ):
+            pConnector = CConnector(pLink.GetConnectorList()[Position+1])
+            if( pConnector == 0 or pConnector.GetLinkCount() <= 1 ):
+                continue
+            Position2 = POSITION(pConnector.GetLinkList()[0])
+            while( Position2 != 0 ):
+                pSaveLink = CLink(pConnector.GetLinkList()[Position2+1])
+                if( pSaveLink == 0 or pSaveLink == pLink ):
+                    continue
+                ConnectedLinks.append(pSaveLink)
+        Position = ConnectedLinks()[0]
+        while( Position != 0 ):
+            pFirstLink = CLink(ConnectedLinks()[Position+1])
+            if( pFirstLink == 0 or pFirstLink == pLink ):
+                continue
+            Position2 = Position
+            while( Position2 != 0 ):
+                pSecondLink = ConnectedLinks[Position2+1] 
+                if( pSaveLink == 0 or pSaveLink == pLink ):
+                    continue
+                ConnectedLinks.append(pSaveLink)
+        
+        Position = ConnectedLinks[0]
+        while( Position != 0 ):
+            pFirstLink = CLink(ConnectedLinks[Position+1])
+            if( pFirstLink == 0 or pFirstLink == pLink ):
+                continue
+            Position2 = Position
+            while( Position2 != 0 ):
+                pSecondLink = ConnectedLinks[Position2+1]
+                if( pSecondLink == 0 ):
+                    continue
+                pNewConnector = CLink().GetCommonConnector( pFirstLink, pSecondLink )
+                pTestConnector = CLink().GetCommonConnector( pLink, pFirstLink )
+                if( pNewConnector != 0 and pNewConnector != pTestConnector ):
+                    if( pNewConnector.IsFixed() ):
+                        continue
+                    pLinkList = LinkList()
+                    pLinkList.append(pLink)
+                    pLinkList.append(pFirstLink)
+                    pLinkList.append(pSecondLink)
+                    pLinkList.append(pLinkList)
+                    Count+=1
+        return Count
+                    
+                    
+                    
+    def SimulateLinkTriangle(self, pLinkList, pConnectors, pFixedConnector, pCommonConnector, pResultDistance, ThreeConnectors, ThreeConectorsAngle):
+        if( pResultDistance == 0 ):
+            return False
+        Position = pLinkList[0]
+        ActuatorCount = 0
+        while( Position != 0 ):
+            pLink = pLinkList[Position+1]
+            ####1537
+        pass
     
     

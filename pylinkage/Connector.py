@@ -3,6 +3,7 @@ MAX_DRAWING_POINTS = 600
 from math import *
 from Element import CElement
 from geometry import CFPoint, CFLine, Distance
+from ControlKnob import *
 class ConnectorListOperation():
     def __init__(self):
         pass
@@ -34,6 +35,12 @@ class ConnectorList(list):
                 self.pop(RemovePosition)
                 return True
         return False
+    def __getitem__(self, k):
+        if len(self)==0:
+            print('error')
+        else:
+            return self[k]
+    def __str__(self): return "<list x={v[0]}>".format(v=self)
         
     def Find(self, pConnector):
         Position = self[0]
@@ -43,6 +50,11 @@ class ConnectorList(list):
             if( pCheckConnector != 0 and ( pConnector == 0 or pCheckConnector == pConnector)):
                 return pConnector
         return 0
+    def __getitem__(self, k):
+        if len(self)==0:
+            print('error')
+        else:
+            return self[k]
     
 class CConnector(CElement):
     def __init__(self, *keyword):
@@ -105,7 +117,7 @@ class CConnector(CElement):
             self.m_SlideRadius = 0
             self.m_OriginalSlideRadius = 0
             self.m_Color = [ 200, 200, 200 ]
-            #self.UpdateControlKnob()
+            self.UpdateControlKnob()
         elif len(keyword) ==1:
             self.m_Point = self.m_OriginalPoint
             self.m_PreviousPoint = self.m_OriginalPoint
@@ -252,9 +264,9 @@ class CConnector(CElement):
             self.m_OriginalDrawCircleRadius = self.m_DrawCircleRadius
             
     def IsLinkSelected(self):
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         for Counter in range(Position != None):
-            pLink = self.m_Links.GetNext( Position )
+            pLink = self.m_Links[Position+1]
             if( pLink == 0 ):
                 continue
             if( pLink.IsSelected() ):
@@ -269,9 +281,9 @@ class CConnector(CElement):
     def IsAlwaysManual(self):return self.m_bAlwaysManual
     def GetSelectedLinkCount(self):
         Count = 0
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         for Counter in range(Position != None):
-            pLink = self.m_Links.GetNext( Position )
+            pLink = self.m_Links[ Position +1]
             if( pLink == 0 or not pLink.IsSelected() ):
                 continue
             Count =Count+1
@@ -289,10 +301,10 @@ class CConnector(CElement):
                 keyword[1] = self.m_pSlideLimits[1].GetPoint()
             return self.IsSlider() and self.m_pSlideLimits[0] != 0
     def GetLink(self, Index):
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         Counter=0
         for Counter in range(Position != None):
-            pLink = self.m_Links.GetNext( Position )
+            pLink = self.m_Links[Position+1]
             if( Counter == Index ):
                 return pLink
         return 0
@@ -330,19 +342,19 @@ class CConnector(CElement):
         MaxPoint = MAX_DRAWING_POINTS - 1;
         return self.m_DrawingPoints;
     def HasLink(self, pLink):
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         while( Position != 0 ):
             RemovePosition = Position
-            pCheckLink = self.m_Links.GetNext( Position )
+            pCheckLink = self.m_Links[Position+1] 
             if( pCheckLink != 0 and pLink == pCheckLink ):
                 return True
         return False
     def IsAlone(self):
         if self.m_Links.GetCount() > 1:
             return False
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         if( Position != 0 ):
-            pCheckLink = self.m_Links.GetNext( Position )
+            pCheckLink = self.m_Links[ Position+1] 
             if( pCheckLink.GetConnectorCount() == 1 ):
                 return True
         return False
@@ -363,10 +375,10 @@ class CConnector(CElement):
         self.m_pSlideLimits[1] = pConnector2
         
     def GetSharingLink(self, pOtherConnector):
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         Counter = 0
         for Counter in range(Position != None):
-            pLink = self.m_Links.GetNext( Position )
+            pLink = self.m_Links[ Position+1 ]
             if( pLink == 0 ):
                 continue
             if( pOtherConnector.HasLink( pLink ) ):
@@ -380,13 +392,13 @@ class CConnector(CElement):
         
     def AddLink(self,pLink):
         if self.m_Links.Find( pLink ) == 0:
-            self.m_Links.AddTail( pLink )
+            self.m_Links.append( pLink )
     def RemoveAllLinks(self): self.RemoveLink( 0 )
     def RemoveLink(self, pLink):
-        Position = self.m_Links.GetHeadPosition()
+        Position = self.m_Links[0]
         while( Position != 0 ):
             RemovePosition = Position
-            pCheckLink = self.m_Links.GetNext( Position )
+            pCheckLink = self.m_Links[Position+1] 
             if( pCheckLink != 0 and ( pLink == 0 or pCheckLink == pLink ) ):
                 self.m_Links.RemoveAt( RemovePosition )
                 pCheckLink.SetActuator( pCheckLink.IsActuator() and pCheckLink.GetConnectorCount() == 2 )

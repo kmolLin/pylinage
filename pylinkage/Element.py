@@ -25,6 +25,11 @@ class ElementList(list):
             self.remove(pElement)
             return True
         except ValueError: return False
+    def __getitem__(self, k):
+        if len(self)==0:
+            print('error')
+        else:
+            return self[k]
 
 class CElement():
     def __init__(self, ExistingElement=None):
@@ -125,7 +130,7 @@ class CElement():
                 break
     def IsLink(self):return 0
     def IsConnector(self): return 0
-    def GetControlKnob(self):return self.m_ControlKnob()
+    def GetControlKnob(self):return 1 # self.m_ControlKnob()
     def GetLocation(self):return 0
     def UpdateControlKnob(self, Point=None):return 0
 

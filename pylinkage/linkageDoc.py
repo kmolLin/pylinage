@@ -65,5 +65,8 @@ class CLinkageDoc(list):
             [CFPoint(0, 0), CFPoint(0, 1.), CFPoint(1., 1.), CFPoint(0, 0)],
             [CFPoint(0, 0), CFPoint(0, 1.), CFPoint(1., 1.), CFPoint(1., 0)],
             ]
-        
+        Connectors = CConnector(ConnectorCount)
+        if( Connectors == 0 ):
+            return
+        ###3718
 
